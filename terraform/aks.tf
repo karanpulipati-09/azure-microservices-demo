@@ -19,7 +19,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
     vm_size    = var.node_vm_size
     os_disk_size_gb = 30
     type = "VirtualMachineScaleSets"
-    enable_auto_scaling = false
   }
 
   identity {
@@ -28,17 +27,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   network_profile {
     network_plugin = "azure" # Azure CNI
-  }
-
-  role_based_access_control {
-    enabled = true
-  }
-
-  addon_profile {
-    oms_agent {
-      enabled                    = true
-      log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
-    }
   }
 
   tags = local.tags
