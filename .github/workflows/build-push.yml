@@ -1,0 +1,21 @@
+name: Build and Push
+on:
+  push:
+    paths:
+      - 'helm/**'
+      - 'src/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: aksstagingacr6e4ced83.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - name: Build and push (frontend)
+        run: |
+          echo "Build step placeholder -- adapt to repo layout"

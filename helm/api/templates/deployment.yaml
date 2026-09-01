@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      serviceAccountName: api-sa
+      automountServiceAccountToken: false
+      containers:
+        - name: api
+          image: "aksstagingacr6e4ced83.azurecr.io/api:latest"
+          ports:
+            - containerPort: 8080

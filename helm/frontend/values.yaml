@@ -1,0 +1,9 @@
+replicaCount: 2
+image:
+  repository: "aksstagingacr6e4ced83.azurecr.io/frontend"
+  tag: "latest"
+service:
+  type: ClusterIP
+  port: 80
+serviceAccount:
+  create: true

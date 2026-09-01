@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      serviceAccountName: frontend-sa
+      automountServiceAccountToken: false
+      containers:
+        - name: frontend
+          image: "aksstagingacr6e4ced83.azurecr.io/frontend:latest"
+          ports:
+            - containerPort: 80
