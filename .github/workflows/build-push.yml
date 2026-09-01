@@ -5,6 +5,8 @@ on:
       - 'helm/**'
       - 'src/**'
       - 'Dockerfile*'
+    branches:
+      - main
 
 jobs:
   build:
@@ -14,6 +16,15 @@ jobs:
       contents: read
 
     steps:
+      - name: Check for required secrets
+        run: |
+          if [[ -z "${{ secrets.AZURE_CLIENT_ID }}" ]] || [[ -z "${{ secrets.AZURE_TENANT_ID }}" ]] || [[ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]]; then
+            echo "::warning::Missing required GitHub secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID"
+            echo "See bootstrap/github-oidc-setup.md for setup instructions"
+            echo "Skipping build/push"
+            exit 0
+          fi
+
       - uses: actions/checkout@v4
 
       - name: Azure Login (OIDC)
@@ -53,3 +64,4 @@ jobs:
           docker build -t ${{ steps.acr.outputs.login_server }}/api:latest -t ${{ steps.acr.outputs.login_server }}/api:${{ github.sha }} ./api || echo "api Dockerfile not found; skipping"
           docker push ${{ steps.acr.outputs.login_server }}/api:latest || echo "API push skipped"
           docker push ${{ steps.acr.outputs.login_server }}/api:${{ github.sha }} || echo "API push (with SHA) skipped"
+
