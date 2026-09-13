@@ -5,7 +5,7 @@ region = "eastus"
 resource_group_name = "rg-aks-staging"
 cluster_name = "aks-staging"
 node_count = 3
-node_vm_size = "Standard_D2s_v3"
+node_vm_size = "Standard_D2s_v7"
 
 # ACR name — override with unique name per environment (e.g., via terraform.tfvars.local or TF_VAR_acr_name)
 acr_name = "aksstagingacr6e4ced83"
