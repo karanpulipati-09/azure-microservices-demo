@@ -4,6 +4,8 @@ on:
     paths:
       - 'helm/**'
       - 'src/**'
+      - 'frontend/**'
+      - 'api/**'
       - 'Dockerfile*'
     branches:
       - main
