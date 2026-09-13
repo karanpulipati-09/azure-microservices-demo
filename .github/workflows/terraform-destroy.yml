@@ -8,6 +8,10 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
 
     steps:
       - name: Check for required secrets
