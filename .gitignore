@@ -4,6 +4,7 @@ terraform.tfstate
 terraform.tfstate.backup
 # Kubeconfig and local artifacts
 *.kubeconfig
+kubeconfig.yaml
 .kube/
 # Secrets
 secrets.yml
