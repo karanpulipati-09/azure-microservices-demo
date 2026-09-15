@@ -19,4 +19,6 @@ resources:
     cpu: "500m"
 
 serviceAccount:
-  create: true
+  # Created separately by k8s/serviceaccounts-rbac.yaml, not by this chart
+  create: false
+  name: frontend-sa
