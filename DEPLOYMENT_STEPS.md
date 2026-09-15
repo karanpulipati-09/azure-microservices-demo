@@ -215,24 +215,31 @@ kubectl --kubeconfig=kubeconfig.yaml cluster-info
 
 ---
 
-## Step 9: Deploy Helm Charts (Optional)
+## Step 9: Bootstrap GitOps (ArgoCD)
 
-Once AKS is running and you have kubeconfig:
+`terraform apply` (Step 5) already installs ArgoCD into the cluster via Helm. Deploys are GitOps-driven from here: pushing to `apps/**` triggers `CI — Build and Push`, which builds+pushes a SHA-tagged image; `CD — Update Image Tag` then bumps `helm/*/values.yaml` and commits it back to `main`; ArgoCD detects the change and syncs automatically (auto-sync + self-heal).
+
+Two one-time manual steps are still required after each fresh cluster (ArgoCD watching Git is not itself enough — it needs the namespaces/RBAC to exist first, and it needs to be told about the two apps):
 
 ```bash
-# Create namespaces and RBAC
+# 1. Create namespaces, RBAC, and network policies (ArgoCD's CreateNamespace=true
+#    would otherwise create bare namespaces missing the "restricted" PodSecurity
+#    label and the frontend-sa/api-sa service accounts the charts depend on)
 kubectl apply -f k8s/namespaces-podsecurity.yaml
 kubectl apply -f k8s/serviceaccounts-rbac.yaml
 kubectl apply -f k8s/networkpolicy-default-deny.yaml
 
-# Deploy frontend and API via Helm
-helm install frontend ./helm/frontend -n frontend
-helm install api ./helm/api -n api
+# 2. Register the ArgoCD Applications (one-time; ArgoCD handles all syncs after this)
+kubectl apply -n argocd -f argocd/frontend.yaml
+kubectl apply -n argocd -f argocd/api.yaml
 
-# Verify deployments
+# Verify
+kubectl get applications -n argocd
 kubectl get deployments -n frontend
 kubectl get deployments -n api
 ```
+
+Until `apps/frontend`/`apps/api` have real images pushed to ACR (see "Next: CI/CD for Application Builds" below), pods will show `ImagePullBackOff` — that's expected.
 
 ---
 
@@ -256,14 +263,24 @@ kubectl get deployments -n api
 
 ---
 
-## Next: CI/CD for Application Builds
+## CI/CD for Application Builds
 
-Once infrastructure is ready:
+`apps/frontend` and `apps/api` already contain source + Dockerfiles. The full loop:
 
-1. Add `Dockerfile` files for frontend and api services to repo
-2. Push to main → **Build and Push** workflow automatically builds & pushes images to ACR
-3. Update Helm values with image tags from ACR
-4. Deploy to AKS
+1. Push a change under `apps/**` to `main`
+2. **CI — Build and Push** builds each image, scans it with Trivy, and pushes it to ACR tagged with the short git SHA (OIDC auth via `az acr login` — no stored registry credentials)
+3. **CD — Update Image Tag** runs after CI succeeds, bumps `image.tag` in `helm/frontend/values.yaml` / `helm/api/values.yaml`, and commits that back to `main`
+4. ArgoCD (installed by Terraform, Applications registered in Step 9) detects the Git change and syncs it to the cluster automatically
+
+One manual grant is required for step 2 to work: the `github-actions-aks` service principal needs the **AcrPush** role on the ACR (Contributor alone doesn't include registry data-plane actions like push/pull):
+
+```bash
+az role assignment create \
+  --role "AcrPush" \
+  --assignee-object-id <github-actions-aks-SP-object-id> \
+  --assignee-principal-type ServicePrincipal \
+  --scope "$(az acr show --name aksstagingacr6e4ced83 --resource-group rg-aks-staging --query id -o tsv)"
+```
 
 ---
 
