@@ -3,7 +3,7 @@ replicaCount: 2
 image:
   registry: "aksstagingacr6e4ced83.azurecr.io"
   repository: "frontend"
-  tag: "f20c026"
+  tag: "dd0c396"
   pullPolicy: Always
 
 service:
