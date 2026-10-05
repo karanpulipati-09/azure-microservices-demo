@@ -272,15 +272,7 @@ Until `apps/frontend`/`apps/api` have real images pushed to ACR (see "Next: CI/C
 3. **CD — Update Image Tag** runs after CI succeeds, bumps `image.tag` in `helm/frontend/values.yaml` / `helm/api/values.yaml`, and commits that back to `main`
 4. ArgoCD (installed by Terraform, Applications registered in Step 9) detects the Git change and syncs it to the cluster automatically
 
-One manual grant is required for step 2 to work: the `github-actions-aks` service principal needs the **AcrPush** role on the ACR (Contributor alone doesn't include registry data-plane actions like push/pull):
-
-```bash
-az role assignment create \
-  --role "AcrPush" \
-  --assignee-object-id <github-actions-aks-SP-object-id> \
-  --assignee-principal-type ServicePrincipal \
-  --scope "$(az acr show --name aksstagingacr6e4ced83 --resource-group rg-aks-staging --query id -o tsv)"
-```
+Step 2 needs the `github-actions-aks` service principal to hold the **AcrPush** role on the ACR (Contributor alone doesn't include registry data-plane actions like push/pull). This is managed by Terraform (`azurerm_role_assignment.gha_acr_push` in `terraform/acr.tf`) and recreated automatically on every apply — no manual step required, even after a destroy/recreate cycle.
 
 ---
 
