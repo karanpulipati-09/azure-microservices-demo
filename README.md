@@ -25,6 +25,9 @@ ArgoCD (in-cluster, installed via Terraform)
   watches main branch — auto-sync + self-heal
     │
     ▼
+Internet → Azure LoadBalancer → ingress-nginx (installed via Terraform)
+    │
+    ▼
 AKS Cluster (1 node pool, Standard_D2s_v7, Azure CNI)
     ├── frontend pod  ← nginx-unprivileged (ACR image, ClusterIP :80→8080)
     │     └── proxies /api/* to the api service
@@ -34,8 +37,10 @@ ACR (Azure Container Registry)
     ├── frontend  ← nginx-unprivileged:alpine image
     └── api       ← node:20-alpine image
 
-No public ingress — both services are ClusterIP only, accessed via
-`kubectl port-forward` (see DEPLOYMENT_STEPS.md).
+Single public entry point via ingress-nginx's LoadBalancer IP, routed to the
+frontend service — the frontend's own nginx proxy forwards /api/* to the api
+service internally, so no cross-namespace Ingress routing is needed
+(see DEPLOYMENT_STEPS.md for getting the IP).
 ```
 
 ## Infrastructure
@@ -47,6 +52,7 @@ No public ingress — both services are ClusterIP only, accessed via
 | ACR | Private container registry — `frontend` + `api` repos, admin user disabled (OIDC/RBAC-only access) |
 | Log Analytics Workspace | Backing store for AKS diagnostics |
 | ArgoCD (`helm_release`) | Installed via Terraform into the `argocd` namespace — GitOps controller |
+| ingress-nginx (`helm_release`) | Installed via Terraform into the `ingress-nginx` namespace — provisions an Azure LoadBalancer with a public IP |
 | Terraform remote state | Separate resource group (`rg-terraform-state`) + Storage Account, bootstrapped once via CLI, outside Terraform's own management — survives every `terraform destroy` |
 
 ## Security
@@ -68,7 +74,7 @@ Charts in `helm/`:
 | `helm/frontend` | ClusterIP :80 → 8080 | 8080 | `nginxinc/nginx-unprivileged:alpine` (non-root by default) |
 | `helm/api` | ClusterIP :8080 | 8080 | `node:20-alpine`, `USER 1000` |
 
-No HPA/autoscaling or ingress controller in this demo — fixed replica counts, `kubectl port-forward` for local access.
+No HPA/autoscaling in this demo — fixed replica counts. Public access is via ingress-nginx's Azure LoadBalancer IP (see DEPLOYMENT_STEPS.md), `kubectl port-forward` also still works for local-only access.
 
 **GitOps bootstrap** (one-time per fresh cluster — see `DEPLOYMENT_STEPS.md` Step 9 for full detail):
 ```bash

@@ -243,6 +243,24 @@ Until `apps/frontend`/`apps/api` have real images pushed to ACR (see "Next: CI/C
 
 ---
 
+## Step 10: Get the Public URL
+
+`terraform apply` (Step 5) also installs `ingress-nginx` with `controller.service.type=LoadBalancer`, which provisions a public Azure Load Balancer IP. The frontend's `Ingress` (`helm/frontend/templates/ingress.yaml`) routes all traffic through it — `/api/*` is proxied internally by the frontend's own nginx config, so no separate Ingress rule for `api` is needed.
+
+```bash
+# Wait for EXTERNAL-IP to move from <pending> to a real IP (can take 1-2 min after first apply)
+kubectl get svc -n ingress-nginx ingress-nginx-controller -w
+
+# Once assigned:
+EXTERNAL_IP=$(kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo "http://$EXTERNAL_IP"
+curl "http://$EXTERNAL_IP/api/health"
+```
+
+`kubectl port-forward -n frontend svc/frontend 8090:80` still works for local-only access if you'd rather not use the public IP.
+
+---
+
 ## Troubleshooting
 
 ### Workflow fails: "Missing required secrets"
