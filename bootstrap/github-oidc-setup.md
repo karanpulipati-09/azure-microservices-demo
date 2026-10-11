@@ -40,7 +40,7 @@ In the GitHub repo settings (Settings → Secrets and variables → Actions → 
 
 - `AZURE_CLIENT_ID`: Value from App Registration (client ID)
 - `AZURE_TENANT_ID`: Value from App Registration (tenant ID)
-- `AZURE_SUBSCRIPTION_ID`: Your Azure subscription ID (`6e4ced83-d303-4f8f-ae15-4cdfad7d271a`)
+- `AZURE_SUBSCRIPTION_ID`: Your Azure subscription ID (`49bc2c25-d9dc-4928-ae98-4f287f07e8e8`)
 
 ### 5. Verify Workflows
 
