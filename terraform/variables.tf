@@ -40,6 +40,12 @@ variable "acr_name" {
   default = "aksstagingacr6e4ced83"
 }
 
+variable "github_actions_sp_object_id" {
+  description = "Object ID of the github-actions-aks service principal — used for the AcrPush role assignment on ACR. Stable across destroy/recreate cycles since the SP (not the ACR) is long-lived."
+  type        = string
+  default     = "cecb3866-5b93-40cb-9dbe-216a0f39e22d"
+}
+
 variable "environment" {
   type    = string
   default = "staging"
