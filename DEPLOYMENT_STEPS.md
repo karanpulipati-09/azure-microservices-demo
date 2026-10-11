@@ -1,7 +1,7 @@
 # Azure Microservices Deployment — Complete Steps
 
 ## Prerequisites
-- Azure subscription (ID: `6e4ced83-d303-4f8f-ae15-4cdfad7d271a`)
+- Azure subscription (ID: `49bc2c25-d9dc-4928-ae98-4f287f07e8e8`)
 - GitHub account with admin access to `karanpulipati-09/azure-microservices-demo`
 - Azure CLI installed locally (or use Azure Portal)
 
@@ -78,7 +78,7 @@ az ad app federated-credential create \
 
 ### Using Azure Portal
 
-1. Go to **Subscriptions** → select your subscription (`6e4ced83-d303-4f8f-ae15-4cdfad7d271a`)
+1. Go to **Subscriptions** → select your subscription (`49bc2c25-d9dc-4928-ae98-4f287f07e8e8`)
 2. Click **Access control (IAM)** → **+ Add** → **Add role assignment**
 3. Select **Contributor** role (or **Owner** if you need to manage role assignments)
 4. Go to **Members** tab → **+ Select members**
@@ -89,7 +89,7 @@ az ad app federated-credential create \
 
 ```bash
 AZURE_CLIENT_ID="<your-client-id>"
-SUBSCRIPTION_ID="6e4ced83-d303-4f8f-ae15-4cdfad7d271a"
+SUBSCRIPTION_ID="49bc2c25-d9dc-4928-ae98-4f287f07e8e8"
 
 # App registration only creates an application object — role assignments need
 # the corresponding service principal (enterprise application), so create it first
@@ -117,7 +117,7 @@ az role assignment create \
    |---|---|
    | `AZURE_CLIENT_ID` | The Application (client) ID from Step 1 |
    | `AZURE_TENANT_ID` | The Directory (tenant) ID from Step 1 |
-   | `AZURE_SUBSCRIPTION_ID` | `6e4ced83-d303-4f8f-ae15-4cdfad7d271a` |
+   | `AZURE_SUBSCRIPTION_ID` | `49bc2c25-d9dc-4928-ae98-4f287f07e8e8` |
 
 4. Click **Add secret** for each
 
@@ -163,7 +163,7 @@ git push origin main
 **Expected output:**
 - Resource group created: `rg-aks-staging`
 - AKS cluster created: `aks-staging` (3 nodes)
-- ACR created: `aksstagingacr6e4ced83`
+- ACR created: `aksstagingacr49bc2c25`
 - Log Analytics workspace created
 
 ---
@@ -175,13 +175,13 @@ git push origin main
 1. Go to **Resource groups** → **rg-aks-staging**
 2. Verify resources are present:
    - AKS cluster: `aks-staging`
-   - Container Registry: `aksstagingacr6e4ced83`
+   - Container Registry: `aksstagingacr49bc2c25`
    - Log Analytics Workspace: `aks-staging-law`
 
 ### Via Azure CLI
 
 ```bash
-SUBSCRIPTION_ID="6e4ced83-d303-4f8f-ae15-4cdfad7d271a"
+SUBSCRIPTION_ID="49bc2c25-d9dc-4928-ae98-4f287f07e8e8"
 RG_NAME="rg-aks-staging"
 
 # Set subscription
@@ -194,7 +194,7 @@ az resource list --resource-group "$RG_NAME" -o table
 az aks show --name aks-staging --resource-group "$RG_NAME" --query "{name, state: powerState.code}"
 
 # Get ACR info
-az acr show --name aksstagingacr6e4ced83 --resource-group "$RG_NAME" --query "{name, loginServer}"
+az acr show --name aksstagingacr49bc2c25 --resource-group "$RG_NAME" --query "{name, loginServer}"
 ```
 
 ---
@@ -277,7 +277,7 @@ curl "http://$EXTERNAL_IP/api/health"
 
 ### Terraform Apply fails: "subscription not found"
 - **Cause**: Subscription ID mismatch or app doesn't have access
-- **Fix**: Verify AZURE_SUBSCRIPTION_ID in GitHub secrets matches `6e4ced83-d303-4f8f-ae15-4cdfad7d271a`
+- **Fix**: Verify AZURE_SUBSCRIPTION_ID in GitHub secrets matches `49bc2c25-d9dc-4928-ae98-4f287f07e8e8`
 
 ---
 

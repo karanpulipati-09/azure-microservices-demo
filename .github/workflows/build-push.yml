@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 env:
-  ACR_NAME: aksstagingacr6e4ced83
-  ACR_LOGIN_SERVER: aksstagingacr6e4ced83.azurecr.io
+  ACR_NAME: aksstagingacr49bc2c25
+  ACR_LOGIN_SERVER: aksstagingacr49bc2c25.azurecr.io
 
 jobs:
   build-push:
