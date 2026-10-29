@@ -28,6 +28,9 @@ spec:
               drop: ["ALL"]
           ports:
             - containerPort: 8080
+          env:
+            - name: IMAGE_TAG
+              value: {{ .Values.image.tag | quote }}
           resources:
             requests:
               memory: {{ .Values.resources.requests.memory | quote }}
