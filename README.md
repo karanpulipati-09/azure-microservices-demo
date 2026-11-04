@@ -1,114 +1,157 @@
-## azure-microservices-demo
+# azure-microservices-demo
 
-Azure infrastructure portfolio project built by **[Karan Pulipati](https://www.linkedin.com/in/karan-pulipati)**.
-Demonstrates Terraform, AKS, Helm, and GitOps-based CI/CD from code push to live deployment — the Azure counterpart to [aws-microservices-demo](https://github.com/karanpulipati-09/aws-microservices-demo), aligned on the same image build → push → deploy pattern.
+Azure DevOps portfolio project built by **[Karan Pulipati](https://www.linkedin.com/in/karan-pulipati)**.
+Two small Node.js services on **AKS**, delivered with **Terraform**, **GitHub Actions** and **ArgoCD (GitOps)**, with secrets from **Key Vault via Workload Identity**, **autoscaling**, and **Prometheus/Grafana + Container Insights** monitoring. It is the Azure counterpart to [aws-microservices-demo](https://github.com/karanpulipati-09/aws-microservices-demo).
+
+The application is deliberately tiny. The point of the project is the platform and the delivery pipeline around it.
 
 ## Architecture
 
+### Delivery pipeline (code push to running pods)
+
+```mermaid
+flowchart LR
+    Dev([Developer]) -->|push to main| Repo[("GitHub repo")]
+    Repo -->|apps/** changed| CI["CI: build, Trivy scan, push<br/>(OIDC login, no stored secrets)"]
+    CI -->|"image tagged with short git SHA"| ACR[("Azure Container Registry")]
+    CI -->|workflow_run| CD["CD: bump image tag<br/>in helm values"]
+    CD -->|commit to main| Repo
+    Repo -. watched .-> Argo["ArgoCD<br/>auto-sync + self-heal"]
+    Argo -->|apply manifests| AKS["AKS cluster"]
+    AKS -->|kubelet pulls image| ACR
 ```
-GitHub (main branch)
-    │
-    │ apps/** push
-    ▼
-CI — Build and Push  ──────────────────────────┐
-  build frontend + api (matrix)                │
-  trivy scan                                    │
-  az acr login (OIDC) → push to ACR            │
-    │ tagged with short git SHA                 │
-    ▼                                            │
-CD — Update Image Tag                           │
-  bumps helm/*/values.yaml                       │
-  commits back to main  ─────────────────────────┘
-    │
-    ▼
-ArgoCD (in-cluster, installed via Terraform)
-  watches main branch — auto-sync + self-heal
-    │
-    ▼
-Internet → Azure LoadBalancer → ingress-nginx (installed via Terraform)
-    │
-    ▼
-AKS Cluster (1 node pool, Standard_D2s_v7, Azure CNI)
-    ├── frontend pod  ← nginx-unprivileged (ACR image, ClusterIP :80→8080)
-    │     └── proxies /api/* to the api service
-    └── api pod       ← Node.js REST API (ACR image, ClusterIP :8080)
 
-ACR (Azure Container Registry)
-    ├── frontend  ← nginx-unprivileged:alpine image
-    └── api       ← node:20-alpine image
+CI never talks to the cluster and holds no cluster credentials. Its only hand-off to CD is a Git commit. ArgoCD runs inside the cluster, pulls from Git, and keeps the cluster equal to what Git says.
 
-Single public entry point via ingress-nginx's LoadBalancer IP, routed to the
-frontend service — the frontend's own nginx proxy forwards /api/* to the api
-service internally, so no cross-namespace Ingress routing is needed
-(see DEPLOYMENT_STEPS.md for getting the IP).
+### Runtime
+
+```mermaid
+flowchart TB
+    User([User]) --> LB["Azure Load Balancer"]
+    LB --> Ingress["ingress-nginx"]
+    subgraph AKS["AKS cluster"]
+        Ingress --> FE["frontend pods<br/>nginx, HPA 2-4"]
+        FE -->|"/api/ proxy"| API["api pods<br/>Node.js, HPA 2-4"]
+        CSI["Key Vault CSI driver<br/>+ Workload Identity"] -. mounts secret .-> API
+        Argo["ArgoCD"]
+        Prom["Prometheus + Grafana"]
+        Agent["Container Insights agent"]
+    end
+    CSI --> KV[("Azure Key Vault")]
+    Agent --> LAW[("Log Analytics workspace")]
+```
+
+## What this demonstrates
+
+| Area | What is in the repo |
+|---|---|
+| Infrastructure as code | Terraform for AKS, ACR, VNet, Key Vault, managed identity, Log Analytics, ArgoCD and ingress-nginx; remote state in a separate storage account |
+| GitOps | ArgoCD Applications with auto-sync, prune and self-heal; manual edits to the cluster are reverted in about a second |
+| CI/CD without stored secrets | GitHub Actions authenticates to Azure with OIDC federation, so there are no client secrets or registry passwords in GitHub |
+| Least privilege | Scoped RBAC on the pipeline identity; ACR admin user disabled; `restricted` Pod Security Standard; default-deny NetworkPolicy; per-app service accounts |
+| Secrets management | Key Vault secret mounted into the api pod through the Secrets Store CSI driver, authenticated with Workload Identity (no credentials stored anywhere) |
+| Autoscaling and availability | HPA (2-4 pods, 70% CPU) and a PodDisruptionBudget on both services |
+| Observability | Container Insights into Log Analytics, plus kube-prometheus-stack (Prometheus and Grafana) deployed by ArgoCD |
+| Supply chain | Every image is Trivy-scanned (CRITICAL/HIGH) and tagged with the git SHA, never `latest` |
+
+## Load test result
+
+A 10-minute test from an in-cluster load generator ([fortio](https://github.com/fortio/fortio)) against the frontend, which proxies to the api:
+
+- 871,752 requests at about 1,450 requests/second, 99.997% successful
+- Median latency 15 ms, p99 545 ms
+- The frontend scaled from 2 to 4 pods within about a minute, then the api followed once its own CPU crossed the 70% target; both scaled back to 2 about 5 minutes after the load stopped
+
+## Repository layout
+
+```
+apps/            frontend (static page + nginx proxy config) and api (Node.js) with Dockerfiles
+helm/            one chart per service: deployment, service, HPA, PDB, ingress, SecretProviderClass
+argocd/          ArgoCD Application manifests: frontend, api, monitoring
+k8s/             namespaces + Pod Security labels, service accounts + RBAC, NetworkPolicies
+terraform/       all Azure infrastructure
+.github/workflows/  CI, CD, and Terraform plan/apply/destroy
+bootstrap/       one-time OIDC app registration notes
+docs/            AWS-to-Azure resource mapping and setup notes
 ```
 
 ## Infrastructure
 
 | Resource | Purpose |
 |---|---|
-| Resource Group (`rg-aks-staging`) | Contains all app infra — freely destroyable |
-| AKS Cluster | Single node pool (3x `Standard_D2s_v7`), Azure CNI, OIDC issuer enabled |
-| ACR | Private container registry — `frontend` + `api` repos, admin user disabled (OIDC/RBAC-only access) |
-| Log Analytics Workspace | Backing store for AKS diagnostics |
-| ArgoCD (`helm_release`) | Installed via Terraform into the `argocd` namespace — GitOps controller |
-| ingress-nginx (`helm_release`) | Installed via Terraform into the `ingress-nginx` namespace — provisions an Azure LoadBalancer with a public IP |
-| Terraform remote state | Separate resource group (`rg-terraform-state`) + Storage Account, bootstrapped once via CLI, outside Terraform's own management — survives every `terraform destroy` |
+| Resource group `rg-aks-staging` | Holds all app infrastructure and is safe to destroy |
+| AKS cluster | 2 x `Standard_D2s_v7`, Azure CNI, OIDC issuer and Workload Identity enabled |
+| ACR | Private registry; the AKS kubelet identity has `AcrPull`, the pipeline identity has `AcrPush` |
+| Key Vault | RBAC mode; holds the demo secret read by the api pod |
+| User-assigned identity | Federated to the `api` service account; has `Key Vault Secrets User` on the vault |
+| Log Analytics workspace | Backing store for Container Insights |
+| ArgoCD and ingress-nginx | Installed by Terraform (`helm_release`) |
+| Terraform state | Separate resource group and storage account, created once by hand, so it survives every destroy |
 
-## Security
+## CI/CD workflows
 
-- No long-lived Azure credentials in GitHub — **OIDC** federated identity (`github-actions-aks` app registration) for both Terraform and image pushes
-- ACR has `admin_enabled = false` — pushes authenticate via `az acr login` under the OIDC identity, not shared registry credentials
-- Least-privilege RBAC on the GitHub Actions identity: `Contributor` (subscription), `User Access Administrator` (subscription, scoped by condition to exclude Owner/UAA/RBAC Administrator — needed only so Terraform can create the AKS→ACR `AcrPull` role assignment), `AcrPush` (scoped to the registry only)
-- `frontend`/`api` namespaces enforce the **`restricted`** Pod Security Standard — containers must run non-root, drop all Linux capabilities, and disable privilege escalation
-- Default-deny `NetworkPolicy` in the `api` namespace, with an explicit allow rule for `frontend` → `api` traffic only
-- Trivy scans every image (CRITICAL/HIGH) on every CI build
-- Dedicated `frontend-sa` / `api-sa` service accounts per app, `automountServiceAccountToken: false`
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `build-push.yml` (CI) | Push to `main` touching `apps/**`, or manual | Builds both images in parallel, Trivy scan, pushes to ACR over OIDC |
+| `deploy.yml` (CD) | CI success, or manual | Bumps `image.tag` in `helm/*/values.yaml` and commits to `main`; ArgoCD syncs it |
+| `terraform-plan.yml` | Pull request touching `terraform/**` | `terraform plan` |
+| `terraform-apply.yml` | Push to `main` touching `terraform/**`, or manual | `terraform apply` |
+| `terraform-destroy.yml` | Manual | Destroys the app infrastructure to avoid idle cost |
 
-## Kubernetes + Helm
+## Getting started
 
-Charts in `helm/`:
+Full walkthrough: **[DEPLOYMENT_STEPS.md](DEPLOYMENT_STEPS.md)** (OIDC app registration, role grants, state backend, first apply).
 
-| Chart | Service | Container Port | Base Image |
-|---|---|---|---|
-| `helm/frontend` | ClusterIP :80 → 8080 | 8080 | `nginxinc/nginx-unprivileged:alpine` (non-root by default) |
-| `helm/api` | ClusterIP :8080 | 8080 | `node:20-alpine`, `USER 1000` |
+After `terraform apply`, bootstrap GitOps once per fresh cluster:
 
-No HPA/autoscaling in this demo — fixed replica counts. Public access is via ingress-nginx's Azure LoadBalancer IP (see DEPLOYMENT_STEPS.md), `kubectl port-forward` also still works for local-only access.
-
-**GitOps bootstrap** (one-time per fresh cluster — see `DEPLOYMENT_STEPS.md` Step 9 for full detail):
 ```bash
+az aks get-credentials --resource-group rg-aks-staging --name aks-staging --overwrite-existing
 kubectl apply -f k8s/namespaces-podsecurity.yaml
 kubectl apply -f k8s/serviceaccounts-rbac.yaml
 kubectl apply -f k8s/networkpolicy-default-deny.yaml
 kubectl apply -n argocd -f argocd/frontend.yaml
 kubectl apply -n argocd -f argocd/api.yaml
+kubectl apply -n argocd -f argocd/monitoring.yaml
 ```
-After that, ArgoCD handles every deploy automatically — no more manual `helm install`/`helm upgrade`.
 
-## Applications
+After a destroy and recreate, the managed identity gets a new client ID. Update `keyVault.clientId` in `helm/api/values.yaml`:
 
-| App | Source | ACR Repo | Port |
-|---|---|---|---|
-| frontend | `apps/frontend/` | `frontend` | 8080 (proxies `/api/*` to the api service) |
-| api | `apps/api/` | `api` | 8080 |
+```bash
+az identity show -g rg-aks-staging -n id-api-workload --query clientId -o tsv
+```
 
-The API exposes `/health` (and `/api/health`) → `{ status: "ok", env: "staging", version: "1.0.0", sha: <image-tag>, deployedBy: "ArgoCD" }`.
+### Reaching the tools
 
-Images are tagged with the short git SHA (7 chars). No `latest` tag.
+ArgoCD and Grafana are ClusterIP only. Use a port-forward:
 
-## CI/CD
+```bash
+kubectl port-forward -n argocd svc/argocd-server 8443:443        # https://localhost:8443
+kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80  # http://localhost:3000
+```
 
-| Workflow | Trigger | What it does |
-|---|---|---|
-| `build-push.yml` (CI) | Push to `main` — `apps/**`, or manual | Builds frontend + api in parallel, Trivy scan, OIDC push to ACR |
-| `deploy.yml` (CD) | `workflow_run` on CI success, or manual | Bumps `image.tag` in `helm/*/values.yaml`, commits back to `main` — ArgoCD picks it up |
-| `terraform-plan.yml` | Pull request to `main` — `terraform/**` | Runs `terraform plan` |
-| `terraform-apply.yml` | Push to `main` — `terraform/**`, or manual | Runs `terraform apply` automatically |
-| `terraform-destroy.yml` | Manual (`workflow_dispatch`) | Destroys all app infra — used between sessions to avoid idle cost |
+The app itself is served on the ingress-nginx load balancer IP:
 
-**Authentication**: OIDC throughout — no Azure client secrets or ACR admin credentials stored in GitHub.
+```bash
+kubectl get svc -n ingress-nginx ingress-nginx-controller
+```
 
-## Getting started
+## Lessons learned
 
-See **[DEPLOYMENT_STEPS.md](DEPLOYMENT_STEPS.md)** for the full walkthrough — OIDC app registration, IAM roles, Terraform apply, GitOps bootstrap, and troubleshooting. `docs/` has quick-reference notes on the AWS↔Azure resource mapping.
+- A brand-new Azure subscription registers only a few resource providers. A missing one (Storage, ContainerService, KeyVault and others) can surface as a misleading `SubscriptionNotFound`. Register them with `az provider register`.
+- GitHub's OIDC subject claim now includes immutable owner and repo IDs. A federated credential written in the old `repo:owner/repo:...` format fails with `AADSTS700213`.
+- A VM quota and a VM SKU allow-list are separate restrictions. The error from a real apply lists the allowed SKUs, which is more reliable than quota output.
+- With an HPA, omit `replicas` from the Deployment. Otherwise ArgoCD self-heal keeps resetting the replica count.
+- ArgoCD 2.12 does not know a Deployment status field added in Kubernetes 1.36, which breaks diffing for apps using server-side apply. The monitoring app ignores Deployment `/status` to work around it.
+- Every recreated AKS cluster gets a new random API FQDN, so an old kubeconfig context fails DNS lookup until you re-run `az aks get-credentials --overwrite-existing`.
+
+## Limitations and next steps
+
+- No cluster autoscaler: the trial subscription caps regional vCPU at 4, which is exactly the two nodes. Production would add node autoscaling.
+- The Key Vault secret is a placeholder that demonstrates the mechanism. There is no real database or third-party credential behind it.
+- HTTP only; no custom domain or TLS yet (cert-manager would be the next step).
+- Prometheus keeps 2 days of data in the pod, with no persistent volume.
+- One environment (`staging`). Per-environment values files would be the next structural step.
+
+## Cost
+
+Built on an Azure free-trial subscription. The cluster costs a few hundred rupees per day while running, so it is destroyed between sessions with the `terraform-destroy.yml` workflow. The Terraform state resource group is kept.
