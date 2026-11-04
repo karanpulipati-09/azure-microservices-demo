@@ -29,3 +29,13 @@ keyVault:
   clientId: "2f5b0367-7e9a-4745-b278-905daefa8e28"
   secretName: "api-demo-secret"
   mountPath: "/mnt/secrets-store"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
