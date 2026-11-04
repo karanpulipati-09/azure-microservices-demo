@@ -22,3 +22,13 @@ serviceAccount:
   # Created separately by k8s/serviceaccounts-rbac.yaml, not by this chart
   create: false
   name: frontend-sa
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
