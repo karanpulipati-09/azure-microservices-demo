@@ -360,6 +360,7 @@
         const parts = [`status: ${d.status}`, `env: ${d.env}`, `version: ${d.version}`];
         if (d.sha) parts.push(`sha: ${d.sha}`);
         if (d.deployedBy) parts.push(`deployedBy: ${d.deployedBy}`);
+        if (typeof d.secretLoaded === 'boolean') parts.push(`keyVault: ${d.secretLoaded ? 'secret mounted' : 'no secret'}`);
         detail.textContent = parts.join('  ·  ');
         if (d.env) envValue.textContent = d.env;
         if (d.sha) shaValue.textContent = d.sha;

@@ -31,6 +31,12 @@ spec:
           env:
             - name: IMAGE_TAG
               value: {{ .Values.image.tag | quote }}
+            - name: SECRET_FILE
+              value: "{{ .Values.keyVault.mountPath }}/{{ .Values.keyVault.secretName }}"
+          volumeMounts:
+            - name: keyvault-secrets
+              mountPath: {{ .Values.keyVault.mountPath | quote }}
+              readOnly: true
           resources:
             requests:
               memory: {{ .Values.resources.requests.memory | quote }}
@@ -38,3 +44,10 @@ spec:
             limits:
               memory: {{ .Values.resources.limits.memory | quote }}
               cpu: {{ .Values.resources.limits.cpu | quote }}
+      volumes:
+        - name: keyvault-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: api-keyvault

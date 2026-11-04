@@ -22,3 +22,10 @@ serviceAccount:
   # Created separately by k8s/serviceaccounts-rbac.yaml, not by this chart
   create: false
   name: api-sa
+
+keyVault:
+  name: "kv-aks-staging-49bc2c25"
+  tenantId: "f4be5f66-7656-466b-94fc-130720377802"
+  clientId: "2f5b0367-7e9a-4745-b278-905daefa8e28"
+  secretName: "api-demo-secret"
+  mountPath: "/mnt/secrets-store"
