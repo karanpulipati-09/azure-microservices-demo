@@ -25,7 +25,16 @@ resource "azurerm_kubernetes_cluster" "aks" {
     type = "SystemAssigned"
   }
 
-  oidc_issuer_enabled = true
+  oidc_issuer_enabled       = true
+  workload_identity_enabled = true
+
+  oms_agent {
+    log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
+  }
+
+  key_vault_secrets_provider {
+    secret_rotation_enabled = false
+  }
 
   network_profile {
     network_plugin = "azure" # Azure CNI

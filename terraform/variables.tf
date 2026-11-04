@@ -50,3 +50,9 @@ variable "environment" {
   type    = string
   default = "staging"
 }
+
+variable "key_vault_name" {
+  description = "Globally unique Key Vault name (3-24 chars)."
+  type        = string
+  default     = "kv-aks-staging-49bc2c25"
+}
